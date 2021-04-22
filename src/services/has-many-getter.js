@@ -1,76 +1,35 @@
-const _ = require('lodash');
-const Interface = require('forest-express');
-const orm = require('../utils/orm');
-const QueryBuilder = require('./query-builder');
-const SearchBuilder = require('./search-builder');
-const FiltersParser = require('./filters-parser');
-const CompositeKeysManager = require('./composite-keys-manager');
-const extractRequestedFields = require('./requested-fields-extractor');
-const Operators = require('../utils/operators');
+import CompositeKeysManager from './composite-keys-manager';
+import ResourcesGetter from './resources-getter';
 
-class HasManyGetter {
-  constructor(model, association, options, params) {
-    this.model = model;
-    this.association = association;
-    this.params = params;
-    this.queryBuilder = new QueryBuilder(model, options, params);
-    this.schema = Interface.Schemas.schemas[association.name];
-    [this.primaryKeyModel] = _.keys(model.primaryKeys);
-    this.operators = Operators.getInstance(options);
-    this.filtersParser = new FiltersParser(this.schema, params.timezone, options);
-    this.fieldNamesRequested = extractRequestedFields(
-      params.fields, association, Interface.Schemas.schemas,
-    );
-    this.searchBuilder = new SearchBuilder(
-      association,
-      options,
-      params,
-      this.fieldNamesRequested,
-    );
+class HasManyGetter extends ResourcesGetter {
+  constructor(model, association, lianaOptions, params) {
+    super(association, lianaOptions, params);
+
+    this._rootModel = model;
   }
 
-  async buildWhereConditions({ associationName, search, filters }) {
-    const { AND } = this.operators;
-    const where = { [AND]: [] };
+  async _getRecords() {
+    const { associationName, recordId } = this._params;
+    const options = await this._buildQueryOptions();
 
-    if (search) {
-      const searchCondition = this.searchBuilder.perform(associationName);
-      where[AND].push(searchCondition);
-    }
-
-
-    if (filters) {
-      const formattedFilters = await this.filtersParser.perform(filters);
-      where[AND].push(formattedFilters);
-    }
-
-    return where;
-  }
-
-  async findQuery(queryOptions) {
-    if (!queryOptions) { queryOptions = {}; }
-    const { associationName, recordId } = this.params;
-
-    const where = await this.buildWhereConditions(this.params);
-    const include = this.queryBuilder.getIncludes(this.association, this.fieldNamesRequested);
-
-    const record = await orm.findRecord(this.model, recordId, {
-      order: queryOptions.order,
-      subQuery: false,
-      offset: queryOptions.offset,
-      limit: queryOptions.limit,
-      // NOTICE: by default, all fields from the parent model
-      //         are retrieved, which can cause performance issues,
-      //         whereas we are only requesting the child model here
-      //         and we don't need the parent's attributes
+    const record = await this._rootModel.findOne({
+      // Don't fetch parent attributes (perf)
       attributes: [],
+
+      // We are ordering with the relation
+      // https://github.com/sequelize/sequelize/issues/4553#issuecomment-213989980
+      order: options.order.map((o) => [this._model, ...o]),
+      offset: options.offset,
+      limit: options.limit,
+      where: new CompositeKeysManager(this._rootModel).getRecordsConditions([recordId]),
+      subQuery: false,
       include: [{
-        model: this.association,
+        model: this._model,
         as: associationName,
         scope: false,
         required: false,
-        where,
-        include,
+        where: options.where,
+        include: options.include,
       }],
     });
 
@@ -78,47 +37,20 @@ class HasManyGetter {
   }
 
   async count() {
-    const { associationName, recordId } = this.params;
-    const where = await this.buildWhereConditions(this.params);
-    const include = this.queryBuilder.getIncludes(this.association, this.fieldNamesRequested);
+    const { associationName, recordId } = this._params;
+    const options = await this._buildQueryOptions(true);
 
-    return this.model.count({
-      where: { [this.primaryKeyModel]: recordId },
+    return this._rootModel.count({
+      where: new CompositeKeysManager(this._rootModel).getRecordsConditions([recordId]),
       include: [{
-        model: this.association,
+        model: this._model,
         as: associationName,
-        where,
         required: true,
         scope: false,
-        include,
+        where: options.where,
+        include: options.include,
       }],
     });
-  }
-
-  async getRecords() {
-    const { associationName } = this.params;
-
-    const queryOptions = {
-      order: this.queryBuilder.getOrder(associationName, this.schema),
-      offset: this.queryBuilder.getSkip(),
-      limit: this.queryBuilder.getLimit(),
-    };
-
-    const records = await this.findQuery(queryOptions);
-    new CompositeKeysManager(this.association).annotateRecords(records);
-    return records;
-  }
-
-  async perform() {
-    const records = await this.getRecords();
-
-    let fieldsSearched = null;
-
-    if (this.params.search) {
-      fieldsSearched = this.searchBuilder.getFieldsSearched();
-    }
-
-    return [records, fieldsSearched];
   }
 }
 
