@@ -202,9 +202,6 @@ class QueryOptions {
 
     new LiveQueryChecker().perform(queryToFilterRecords);
 
-    // WARNING
-    // Choosing the first connection might generate issues if the model does not
-    // belongs to this database.
     try {
       const Sequelize = this._model.sequelize.constructor;
       const options = { type: Sequelize.QueryTypes.SELECT };
