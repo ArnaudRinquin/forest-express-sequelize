@@ -23,8 +23,7 @@ class QueryOptions {
     // Used for failed search, and when retricting to empty lists of ids.
     // Saves us from having to deal with thoses cases in all charts, ressources-getter, ...
     if (this._returnZeroRecords) {
-      const Sequelize = this._model.sequelize.constructor;
-      return { where: Sequelize.literal('(0=1)') };
+      return { where: this._Sequelize.literal('(0=1)') };
     }
 
     // Compute includes from the fields that we need for the request
@@ -39,7 +38,7 @@ class QueryOptions {
     }
 
     // It was more convenient to store where clauses as an array.
-    const { AND } = Operators.getInstance({ Sequelize: this._model.sequelize.constructor });
+    const { AND } = Operators.getInstance({ Sequelize: this._Sequelize });
     const where = { [AND]: this._where };
 
     return {
@@ -52,6 +51,8 @@ class QueryOptions {
   }
 
   constructor(model, options = {}) {
+    this._Sequelize = model.sequelize.constructor;
+    this._schema = Schemas.schemas[model.name];
     this._model = model.unscoped();
     this._returnZeroRecords = false;
 
@@ -109,9 +110,7 @@ class QueryOptions {
    * @param {*} timezone
    */
   async filterByConditionTree(filters, timezone) {
-    const schema = Schemas.schemas[this._model.name];
-    const options = { Sequelize: this._model.sequelize.constructor };
-    const filterParser = new FiltersParser(schema, timezone, options);
+    const filterParser = new FiltersParser(this._schema, timezone, { Sequelize: this._Sequelize });
 
     if (filters) {
       const whereClause = await filterParser.perform(filters);
@@ -132,7 +131,7 @@ class QueryOptions {
 
     const searchBuilder = new SearchBuilder(
       this._model,
-      { Sequelize: this._model.sequelize.constructor },
+      { Sequelize: this._Sequelize },
       { search, searchExtended },
       [...this._requestedFields],
     );
@@ -162,11 +161,10 @@ class QueryOptions {
   async segment(name) {
     if (!name) return;
 
-    const schema = Schemas.schemas[this._model.name];
-    const segment = schema.segments?.find((s) => s.name === name);
+    const segment = this._schema.segments?.find((s) => s.name === name);
 
     // Segments can be provided as a sequelize scope
-    // UNDOCUMENTED Should this feature be kept?
+    // FIXME bugged
     if (segment?.scope) {
       this._model = this._model.scope(segment.scope);
     }
@@ -190,8 +188,7 @@ class QueryOptions {
     new LiveQueryChecker().perform(queryToFilterRecords);
 
     try {
-      const Sequelize = this._model.sequelize.constructor;
-      const options = { type: Sequelize.QueryTypes.SELECT };
+      const options = { type: this._Sequelize.QueryTypes.SELECT };
       const records = await this._model.sequelize.query(queryToFilterRecords, options);
       const recordIds = records.map((result) => result[primaryKey] || result.id);
 
@@ -214,9 +211,6 @@ class QueryOptions {
       return;
     }
 
-    const Sequelize = this._model.sequelize.constructor;
-    const schema = Schemas.schemas[this._model.name];
-
     let order = 'ASC';
     if (sortString[0] === '-') {
       sortString = sortString.substring(1);
@@ -227,10 +221,10 @@ class QueryOptions {
       // Sort on the belongsTo displayed field
       const [associationName, fieldName] = sortString.split('.');
       const column = QueryUtils.getReferenceField(
-        Schemas.schemas, schema, associationName, fieldName,
+        Schemas.schemas, this._schema, associationName, fieldName,
       );
 
-      this._order.push([Sequelize.col(column), order]);
+      this._order.push([this._Sequelize.col(column), order]);
       this._neededFields.add(sortString);
     } else {
       this._order.push([sortString, order]);
