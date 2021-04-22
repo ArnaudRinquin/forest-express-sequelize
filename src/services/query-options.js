@@ -134,8 +134,9 @@ class QueryOptions {
     );
 
     const conditions = searchBuilder.perform();
+    const searchedFields = searchBuilder.getFieldsSearched();
 
-    // Custom field search definition adds custom conditions to the query where clause.
+    // Add search on smart fields
     let hasCustomFieldSearch = false;
     Schemas.schemas[this._model.name].fields.forEach((field) => {
       if (!field.search) return;
@@ -154,7 +155,7 @@ class QueryOptions {
       }
     });
 
-    const searchedFields = searchBuilder.getFieldsSearched();
+    // FIXME retrocompatibility, would be better to check if condition is empty
     const searchFailed = searchedFields.length === 0 && !hasCustomFieldSearch
       && (!searchExtended || !searchBuilder.hasExtendedSearchConditions());
 
