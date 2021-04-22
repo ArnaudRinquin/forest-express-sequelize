@@ -6,6 +6,7 @@ import CompositeKeysManager from './composite-keys-manager';
 import { ErrorHTTP422 } from './errors';
 import FiltersParser from './filters-parser';
 import LiveQueryChecker from './live-query-checker';
+import QueryBuilder from './query-builder';
 import SearchBuilder from './search-builder';
 
 /**
@@ -29,7 +30,9 @@ class QueryOptions {
     // Compute includes from the fields that we need for the request
     let include = [
       ...this._include,
-      ...this._computeIncludesFor([...this._requestedFields, ...this._neededFields]),
+      ...new QueryBuilder().getIncludes(
+        this._model, [...this._requestedFields, ...this._neededFields],
+      ),
     ];
 
     if (include.length === 0) {
@@ -247,82 +250,6 @@ class QueryOptions {
       this._offset = offset;
       this._limit = limit;
     }
-  }
-
-  /**
-   * Compute "includes" parameter which is expected by sequelize from a list of fields.
-   * The list of fields can contain fields from relations in the form 'author.firstname'
-   *
-   * @param {string[]} fieldNames model and relationship field names
-   */
-  _computeIncludesFor(fieldNames) {
-    /**
-     * @param {string[]} values
-     * @returns {string[]}
-     */
-    function _uniqueValues(values) {
-      return Array.from(new Set(values));
-    }
-
-    /**
-     * @param {string} key
-     * @param {sequelize.Association} association
-     * @returns {string}
-     */
-    function _getTargetFieldName(key, association) {
-    // Defensive programming
-      if (key && association.target.tableAttributes[key]) {
-        return association.target.tableAttributes[key].fieldName;
-      }
-
-      return undefined;
-    }
-
-    /**
-     * @param {sequelize.HasOne|sequelize.BelongsTo} association
-     * @returns {string[]}
-     */
-    function _getMandatoryFields(association) {
-      return association.target.primaryKeyAttributes
-        .map((attribute) => _getTargetFieldName(attribute, association));
-    }
-
-    const includes = [];
-
-    Object.values(this._model.associations)
-      .filter((association) => ['HasOne', 'BelongsTo'].includes(association.associationType))
-      .forEach((association) => {
-        const targetFields = Object.values(association.target.tableAttributes)
-          .map((attribute) => attribute.fieldName);
-
-        const explicitAttributes = (fieldNames || [])
-          .filter((name) => name.startsWith(`${association.as}.`))
-          .map((name) => name.replace(`${association.as}.`, ''))
-          .filter((fieldName) => targetFields.includes(fieldName));
-
-        if (!fieldNames
-          || fieldNames.includes(association.as)
-          || explicitAttributes.length) {
-          // NOTICE: For performance reasons, we only request the keys
-          //         as they're the only needed fields for the interface
-          const uniqueExplicitAttributes = _uniqueValues([
-            ..._getMandatoryFields(association),
-            ...explicitAttributes,
-          ].filter(Boolean));
-
-          const attributes = explicitAttributes.length
-            ? uniqueExplicitAttributes
-            : undefined;
-
-          includes.push({
-            model: association.target.unscoped(),
-            as: association.associationAccessor,
-            attributes,
-          });
-        }
-      });
-
-    return includes;
   }
 }
 
