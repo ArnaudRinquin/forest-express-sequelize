@@ -84,7 +84,9 @@ class QueryOptions {
    * @param {string[]} fields
    */
   async requireFields(fields) {
-    fields.forEach(this._requestedFields.add, this._requestedFields);
+    if (fields) {
+      fields.forEach(this._requestedFields.add, this._requestedFields);
+    }
   }
 
   /**
