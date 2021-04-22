@@ -23,7 +23,7 @@ class ResourcesGetter {
     const options = await this._buildQueryOptions(true);
 
     // If no primary key is found, use * as a fallback for Sequelize.
-    if (!_.isEmpty(this._model.primaryKeys)) options.col = '*';
+    if (_.isEmpty(this._model.primaryKeys)) options.col = '*';
 
     return this._model.count(options);
   }
