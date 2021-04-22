@@ -169,29 +169,53 @@ class QueryOptions {
 
   /**
    * Apply a forestadmin segment
-   *
    * @param {string} name name of the segment (from the querystring)
    * @param {string} segmentQuery SQL query of the segment (also from querystring)
    */
-  async segment(name, segmentQuery = null) {
-    if (name) {
-      // Segments can be provided as a sequelize scope
-      // UNDOCUMENTED Should this feature be kept?
-      const schema = Schemas.schemas[this._model.name];
-      const segment = schema.segments?.find((s) => s.name === name);
-      if (segment?.scope) {
-        this._model = this._model.scope(segment.scope);
-      }
+  async segment(name) {
+    if (!name) return;
 
-      // ... or as a function which returns a sequelize where clause ...
-      if (typeof segment?.where === 'function') {
-        this._where.push(await segment.where());
-      }
+    const schema = Schemas.schemas[this._model.name];
+    const segment = schema.segments?.find((s) => s.name === name);
+
+    // Segments can be provided as a sequelize scope
+    // UNDOCUMENTED Should this feature be kept?
+    if (segment?.scope) {
+      this._model = this._model.scope(segment.scope);
     }
 
-    // ... or as a SQL query provided in the query string.
-    if (segmentQuery) {
-      this._where.push(await this._getWhereClauseFromCustomerQuery(segmentQuery));
+    // ... or as a function which returns a sequelize where clause ...
+    if (typeof segment?.where === 'function') {
+      this._where.push(await segment.where());
+    }
+  }
+
+  /**
+   * Apply a segment query.
+   * FIXME Select SQL injection allows to fetch any information from database.
+   */
+  async segmentQuery(query) {
+    if (!query) return;
+
+    const [primaryKey] = _.keys(this._model.primaryKeys);
+    const queryToFilterRecords = query.trim();
+
+    new LiveQueryChecker().perform(queryToFilterRecords);
+
+    // WARNING
+    // Choosing the first connection might generate issues if the model does not
+    // belongs to this database.
+    try {
+      const Sequelize = this._model.sequelize.constructor;
+      const options = { type: Sequelize.QueryTypes.SELECT };
+      const records = await this._model.sequelize.query(queryToFilterRecords, options);
+      const recordIds = records.map((result) => result[primaryKey] || result.id);
+
+      this.filterByIds(recordIds);
+    } catch (error) {
+      const errorMessage = `Invalid SQL query for this Live Query segment:\n${error.message}`;
+      logger.error(errorMessage);
+      throw new ErrorHTTP422(errorMessage);
     }
   }
 
@@ -319,39 +343,6 @@ class QueryOptions {
       });
 
     return includes;
-  }
-
-
-  /**
-   * Create sequelize where clause from a query which returns a list of ids.
-   * i.e. SELECT author_id as id FROM books WHERE book.cover_color = 'red'
-   */
-  async _getWhereClauseFromCustomerQuery(query) {
-    const queryToFilterRecords = query.trim();
-
-    // FIXME This won't work with composite pks
-    // User should be able to return packed ids: SELECT CONCAT(field1, '|', field2)
-    const [primaryKey] = _.keys(this._model.primaryKeys);
-
-    // FIXME The query should be loaded from forestadmin-server.
-    // This can allow to extract any information from the database.
-    new LiveQueryChecker().perform(queryToFilterRecords);
-
-    // WARNING
-    // Choosing the first connection might generate issues if the model does not
-    // belongs to this database.
-    try {
-      const Sequelize = this._model.sequelize.constructor;
-      const options = { type: Sequelize.QueryTypes.SELECT };
-      const records = await this._model.sequelize.query(queryToFilterRecords, options);
-
-      const recordIds = records.map((result) => result[primaryKey] || result.id);
-      return { [primaryKey]: recordIds };
-    } catch (error) {
-      const errorMessage = `Invalid SQL query for this Live Query segment:\n${error.message}`;
-      logger.error(errorMessage);
-      throw new ErrorHTTP422(errorMessage);
-    }
   }
 }
 

@@ -57,7 +57,8 @@ class ResourcesGetter {
     await queryOptions.requireFields(requestedFields);
     await queryOptions.search(search, searchExtended);
     await queryOptions.filterByConditionTree(filters, timezone);
-    await queryOptions.segment(segment, segmentQuery);
+    await queryOptions.segment(segment);
+    await queryOptions.segmentQuery(segmentQuery);
 
     if (!forCount) {
       const { sort, page } = this._params;
