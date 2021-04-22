@@ -50,10 +50,20 @@ class QueryOptions {
     };
   }
 
+  /**
+   * @param {sequelize.model} model Sequelize model that should be targeted
+   * @param {boolean} options.includeRelations Include BelongsTo and HasOne relations by default
+   * @param {boolean} options.tableAlias Alias that will be used for this table on the final query
+   *  This should have been handled by sequelize but it was needed in order to use
+   *  sequelize.fn('lower', sequelize.col('<alias>.col')) in the search-builder with
+   *  has-many-getter.
+   */
   constructor(model, options = {}) {
     this._Sequelize = model.sequelize.constructor;
     this._schema = Schemas.schemas[model.name];
     this._model = model.unscoped();
+    this._options = options;
+
     this._returnZeroRecords = false;
 
     // Used to compute relations that will go in the final 'include'
@@ -70,7 +80,7 @@ class QueryOptions {
     this._offset = 0;
     this._limit = 10;
 
-    if (options.includeRelations) {
+    if (this._options.includeRelations) {
       _.values(this._model.associations).forEach((association) => {
         if (['HasOne', 'BelongsTo'].includes(association.associationType)) {
           this._requestedFields.add(association.associationAccessor);
@@ -136,7 +146,7 @@ class QueryOptions {
       [...this._requestedFields],
     );
 
-    const conditions = searchBuilder.perform();
+    const conditions = searchBuilder.perform(this._options.tableAlias);
     const hasCustomFieldSearch = searchBuilder.injectSmartFieldSearch(conditions);
     const searchedFields = searchBuilder.getFieldsSearched();
 

@@ -5,12 +5,12 @@ class HasManyGetter extends ResourcesGetter {
   constructor(model, association, lianaOptions, params) {
     super(association, lianaOptions, params);
 
-    this._rootModel = model;
+    this._rootModel = model.unscoped();
   }
 
   async _getRecords() {
     const { associationName, recordId } = this._params;
-    const options = await this._buildQueryOptions();
+    const options = await this._buildQueryOptions({ tableAlias: associationName });
 
     const record = await this._rootModel.findOne({
       // Don't fetch parent attributes (perf)
@@ -38,7 +38,7 @@ class HasManyGetter extends ResourcesGetter {
 
   async count() {
     const { associationName, recordId } = this._params;
-    const options = await this._buildQueryOptions(true);
+    const options = await this._buildQueryOptions({ forCount: true, tableAlias: associationName });
 
     return this._rootModel.count({
       where: new CompositeKeysManager(this._rootModel).getRecordsConditions([recordId]),

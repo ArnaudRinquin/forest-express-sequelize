@@ -47,13 +47,14 @@ class ResourcesGetter {
   }
 
   /** Compute query options which are shared for count() and getRecords() */
-  async _buildQueryOptions(forCount = false) {
+  async _buildQueryOptions(options = {}) {
+    const { forCount, tableAlias } = options;
     const {
       fields, filters, search, searchExtended, segment, segmentQuery, timezone,
     } = this._params;
 
     const requestedFields = extractRequestedFields(fields, this._model, Schemas.schemas);
-    const queryOptions = new QueryOptions(this._model);
+    const queryOptions = new QueryOptions(this._model, { tableAlias });
     await queryOptions.requireFields(requestedFields);
     await queryOptions.search(search, searchExtended);
     await queryOptions.filterByConditionTree(filters, timezone);
