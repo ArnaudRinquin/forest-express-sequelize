@@ -1,7 +1,6 @@
 import { logger, Schemas } from 'forest-express';
 import _ from 'lodash';
 import Operators from '../utils/operators';
-import QueryUtils from '../utils/query';
 import CompositeKeysManager from './composite-keys-manager';
 import { ErrorHTTP422 } from './errors';
 import FiltersParser from './filters-parser';
@@ -230,11 +229,7 @@ class QueryOptions {
     if (sortString.indexOf('.') !== -1) {
       // Sort on the belongsTo displayed field
       const [associationName, fieldName] = sortString.split('.');
-      const column = QueryUtils.getReferenceField(
-        Schemas.schemas, this._schema, associationName, fieldName,
-      );
-
-      this._order.push([this._Sequelize.col(column), order]);
+      this._order.push([associationName, fieldName, order]);
       this._neededFields.add(sortString);
     } else {
       this._order.push([sortString, order]);
