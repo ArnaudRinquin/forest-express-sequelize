@@ -17,8 +17,6 @@ class CompositeKeysManager {
   /** Build sequelize where condition from a list of packed recordIds */
   getRecordsConditions(recordIds) {
     const Ops = Operators.getInstance({ Sequelize: this._Sequelize });
-
-    // Empty array => return a query that match no records instead of crashing.
     if (recordIds.length === 0) {
       throw new Error('At least one recordId must be provided');
     }
