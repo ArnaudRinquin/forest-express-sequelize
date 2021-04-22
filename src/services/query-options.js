@@ -134,28 +134,10 @@ class QueryOptions {
     );
 
     const conditions = searchBuilder.perform();
+    const hasCustomFieldSearch = searchBuilder.injectSmartFieldSearch(conditions);
     const searchedFields = searchBuilder.getFieldsSearched();
 
-    // Add search on smart fields
-    let hasCustomFieldSearch = false;
-    Schemas.schemas[this._model.name].fields.forEach((field) => {
-      if (!field.search) return;
-
-      const Ops = Operators.getInstance({ Sequelize: this._model.sequelize.constructor });
-      try {
-        // Retrocompatibility: customers which implement search on smart fields are expected to
-        // inject their conditions at .where[Op.and][0][Op.or].push(searchCondition)
-        // https://docs.forestadmin.com/documentation/reference-guide/fields/create-and-manage-smart-fields
-        const fakeQuery = { include: [], where: { [Ops.AND]: [conditions] } };
-        field.search(fakeQuery, search);
-        this._include.push(...fakeQuery.include);
-        hasCustomFieldSearch = true;
-      } catch (error) {
-        logger.error(`Cannot search properly on Smart Field ${field.field}`, error);
-      }
-    });
-
-    // FIXME retrocompatibility, would be better to check if condition is empty
+    // FIXME retrocompatibility, would be better to check if condition is empty.
     const searchFailed = searchedFields.length === 0 && !hasCustomFieldSearch
       && (!searchExtended || !searchBuilder.hasExtendedSearchConditions());
 

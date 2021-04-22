@@ -70,6 +70,28 @@ function SearchBuilder(model, opts, params, fieldNamesRequested) {
 
   this.hasExtendedSearchConditions = () => hasExtendedConditions;
 
+  this.injectSmartFieldSearch = (conditions) => {
+    const { search } = params;
+
+    let hasCustomFieldSearch = false;
+    schema.fields.forEach((field) => {
+      if (!field.search) return;
+
+      try {
+        // Retrocompatibility: customers which implement search on smart fields are expected to
+        // inject their conditions at .where[Op.and][0][Op.or].push(searchCondition)
+        // https://docs.forestadmin.com/documentation/reference-guide/fields/create-and-manage-smart-fields
+        const fakeQuery = { include: [], where: { [OPERATORS.AND]: [conditions] } };
+        field.search(fakeQuery, search);
+        hasCustomFieldSearch = true;
+      } catch (error) {
+        Interface.logger.error(`Cannot search properly on Smart Field ${field.field}`, error);
+      }
+    });
+
+    return hasCustomFieldSearch;
+  };
+
   this.perform = (associationName) => {
     if (!params.search) { return null; }
 
