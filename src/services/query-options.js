@@ -28,11 +28,10 @@ class QueryOptions {
     }
 
     // Compute includes from the fields that we need for the request
+    const fields = [...this._requestedFields, ...this._neededFields];
     let include = [
       ...this._include,
-      ...new QueryBuilder().getIncludes(
-        this._model, [...this._requestedFields, ...this._neededFields],
-      ),
+      ...new QueryBuilder().getIncludes(this._model, fields.length ? fields : null),
     ];
 
     if (include.length === 0) {
