@@ -19,6 +19,8 @@ class QueryOptions {
    * i.e: Books.findAll(queryOptions.sequelizeOptions);
    */
   get sequelizeOptions() {
+    const { AND } = Operators.getInstance({ Sequelize: this._Sequelize });
+
     // Used for failed search, and when retricting to empty lists of ids.
     // Saves us from having to deal with thoses cases in all charts, ressources-getter, ...
     if (this._returnZeroRecords) {
@@ -27,26 +29,19 @@ class QueryOptions {
 
     // Compute includes from the fields that we need for the request
     const fields = [...this._requestedFields, ...this._neededFields];
-    let include = [
+    const include = [
       ...this._include,
       ...new QueryBuilder().getIncludes(this._model, fields.length ? fields : null),
     ];
 
-    if (include.length === 0) {
-      include = undefined; // Work around Sequelize 4.8.x bug
-    }
-
-    // It was more convenient to store where clauses as an array.
-    const { AND } = Operators.getInstance({ Sequelize: this._Sequelize });
-    const where = { [AND]: this._where };
-
-    return {
-      include,
-      where,
-      order: this._order,
-      offset: this._offset,
-      limit: this._limit,
-    };
+    const options = {};
+    if (this._where.length === 1) [options.where] = this._where;
+    if (this._where.length > 1) options.where = { [AND]: this._where };
+    if (include.length) options.include = include;
+    if (this._order.length) options.order = this._order;
+    if (this._offset !== undefined) options.offset = this._offset;
+    if (this._limit !== undefined) options.limit = this._limit;
+    return options;
   }
 
   /**
@@ -76,8 +71,8 @@ class QueryOptions {
     // Other sequelize params
     this._where = [];
     this._order = [];
-    this._offset = 0;
-    this._limit = 10;
+    this._offset = undefined;
+    this._limit = undefined;
 
     if (this._options.includeRelations) {
       _.values(this._model.associations).forEach((association) => {
@@ -237,7 +232,8 @@ class QueryOptions {
   }
 
   /**
-   * Apply pagination
+   * Apply pagination.
+   * When called with invalid parameters the query will be paginated using default values.
    *
    * @param {number|string} number page number (starting at one)
    * @param {number|string} size page size
@@ -246,9 +242,12 @@ class QueryOptions {
     const limit = Number.parseInt(size, 10);
     const offset = (Number.parseInt(number, 10) - 1) * limit;
 
-    if (!Number.isNaN(limit) && !Number.isNaN(offset)) {
+    if (offset >= 0 && limit > 0) {
       this._offset = offset;
       this._limit = limit;
+    } else {
+      this._offset = 0;
+      this._limit = 10;
     }
   }
 }

@@ -40,7 +40,7 @@ describe('services > HasManyGetter', () => {
 
         const hasManyGetter = new HasManyGetter(model, association, sequelizeOptions, { timezone });
         const { where } = await hasManyGetter._buildQueryOptions(options);
-        expect(where).toStrictEqual({ [AND]: [] });
+        expect(where).toBeUndefined();
       });
     });
 
@@ -53,7 +53,7 @@ describe('services > HasManyGetter', () => {
           model, association, sequelizeOptions, { filters, timezone },
         );
         const { where } = await hasManyGetter._buildQueryOptions(options);
-        expect(where).toStrictEqual({ [AND]: [{ id: { [GT]: 1 } }] });
+        expect(where).toStrictEqual({ id: { [GT]: 1 } });
       });
     });
 
@@ -68,15 +68,13 @@ describe('services > HasManyGetter', () => {
         const { where } = await hasManyGetter._buildQueryOptions(options);
 
         expect(where).toStrictEqual({
-          [AND]: [{
-            [OR]: expect.arrayContaining([
-              expect.objectContaining({
-                attribute: { args: [{ col: 'users.name' }], fn: 'lower' },
-                comparator: ' LIKE ',
-                logic: { args: ['%test%'], fn: 'lower' },
-              }),
-            ]),
-          }],
+          [OR]: expect.arrayContaining([
+            expect.objectContaining({
+              attribute: { args: [{ col: 'users.name' }], fn: 'lower' },
+              comparator: ' LIKE ',
+              logic: { args: ['%test%'], fn: 'lower' },
+            }),
+          ]),
         });
       });
     });

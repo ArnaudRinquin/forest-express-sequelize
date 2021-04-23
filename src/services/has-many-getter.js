@@ -18,7 +18,7 @@ class HasManyGetter extends ResourcesGetter {
 
       // We are ordering with the relation
       // https://github.com/sequelize/sequelize/issues/4553#issuecomment-213989980
-      order: options.order.map((o) => [associationName, ...o]),
+      order: (options.order || []).map((o) => [associationName, ...o]),
       offset: options.offset,
       limit: options.limit,
       where: new CompositeKeysManager(this._rootModel).getRecordsConditions([recordId]),
