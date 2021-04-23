@@ -20,12 +20,13 @@ class ResourcesGetter {
 
   /** Count records matching current query (wo/ pagination) */
   async count() {
-    const options = await this._buildQueryOptions(true);
+    const options = await this._buildQueryOptions({ forCount: true });
 
     // If no primary key is found, use * as a fallback for Sequelize.
-    if (_.isEmpty(this._model.primaryKeys)) options.col = '*';
-
-    return this._model.count(options);
+    return this._model.count({
+      ...options,
+      col: _.isEmpty(this._model.primaryKeys) ? '*' : undefined,
+    });
   }
 
   /** Load records matching current query (w/ pagination) */
@@ -36,7 +37,7 @@ class ResourcesGetter {
     return records;
   }
 
-  /** Get list of fields descriptors which are used when searching (frontend highlighting). */
+  /** Get list of fields descriptors which are used when searching (for frontend highlighting). */
   async _getFieldsSearched() {
     const { fields, search, searchExtended } = this._params;
     const requestedFields = extractRequestedFields(fields, this._model, Schemas.schemas);
@@ -46,7 +47,7 @@ class ResourcesGetter {
     return queryOptions.search(search, searchExtended);
   }
 
-  /** Compute query options which are shared for count() and getRecords() */
+  /** Compute query options (shared for count and getRecords) */
   async _buildQueryOptions(options = {}) {
     const { forCount, tableAlias } = options;
     const {
