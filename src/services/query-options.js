@@ -133,11 +133,12 @@ class QueryOptions {
   async search(search, searchExtended) {
     if (!search) return [];
 
+    const fieldNames = this._requestedFields.size ? [...this._requestedFields] : null;
     const searchBuilder = new SearchBuilder(
       this._model,
       { Sequelize: this._Sequelize },
       { search, searchExtended },
-      [...this._requestedFields],
+      fieldNames,
     );
 
     const conditions = searchBuilder.perform(this._options.tableAlias);
