@@ -16,23 +16,24 @@ class CompositeKeysManager {
   /** Build sequelize where condition from a list of packed recordIds */
   getRecordsConditions(recordIds) {
     const Ops = Operators.getInstance({ Sequelize: this._Sequelize });
-    if (this._primaryKeys.length === 0) {
-      throw new Error('No primary key was found');
-    }
-
     if (recordIds.length <= 0) {
       return this._Sequelize.literal('(0=1)');
     }
 
-    if (this._primaryKeys.length === 1) {
-      return recordIds.length === 1
-        ? { [this._primaryKeys[0]]: recordIds[0] }
-        : { [this._primaryKeys[0]]: recordIds };
-    }
+    switch (this._primaryKeys.length) {
+      case 0:
+        throw new Error('No primary key was found');
 
-    return recordIds.length === 1
-      ? this._getRecordConditions(recordIds[0])
-      : { [Ops.OR]: recordIds.map((id) => this._getRecordConditions(id)) };
+      case 1:
+        return recordIds.length === 1
+          ? { [this._primaryKeys[0]]: recordIds[0] }
+          : { [this._primaryKeys[0]]: recordIds };
+
+      default:
+        return recordIds.length === 1
+          ? this._getRecordConditions(recordIds[0])
+          : { [Ops.OR]: recordIds.map((id) => this._getRecordConditions(id)) };
+    }
   }
 
   /* Annotate records with their packed primary key */
