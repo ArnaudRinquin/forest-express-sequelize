@@ -1,8 +1,8 @@
-import _ from 'lodash';
-import { Schemas, BaseOperatorDateParser } from 'forest-express';
+import { BaseOperatorDateParser, Schemas } from 'forest-express';
 import Operators from '../utils/operators';
-import FiltersParser from './filters-parser';
 import Orm from '../utils/orm';
+import FiltersParser from './filters-parser';
+import QueryOptions from './query-options';
 
 function ValueStatGetter(model, params, options) {
   const OPERATORS = Operators.getInstance(options);
@@ -25,74 +25,48 @@ function ValueStatGetter(model, params, options) {
     return `${schema.name}.${Orm.getColumnName(schema, fieldName)}`;
   }
 
-  function getIncludes() {
-    const includes = [];
-    _.values(model.associations).forEach((association) => {
-      if (['HasOne', 'BelongsTo'].indexOf(association.associationType) > -1) {
-        includes.push({
-          model: association.target.unscoped(),
-          as: association.associationAccessor,
-          attributes: [],
-        });
-      }
-    });
-
-    return includes;
-  }
-
   this.perform = async () => {
-    let countCurrent;
     const aggregateField = getAggregateField();
     const aggregate = getAggregate();
-    let where;
     let rawPreviousInterval;
+
+    const queryOptions = new QueryOptions(model, { includeRelations: true });
+    queryOptions.filterByConditionTree(params.filters);
+    const { where, include } = queryOptions.sequelizeOptions;
+
     if (params.filters) {
       const conditionsParser = new FiltersParser(schema, params.timezone, options);
-      where = await conditionsParser.perform(params.filters);
       rawPreviousInterval = conditionsParser.getPreviousIntervalCondition(params.filters);
     }
 
-    return model
-      .unscoped()
-      .aggregate(aggregateField, aggregate, {
-        include: getIncludes(),
-        where,
-      })
-      .then((count) => {
-        countCurrent = count || 0;
+    const countCurrent = await model.unscoped().aggregate(
+      aggregateField, aggregate, { include, where },
+    ) || 0;
 
-        if (rawPreviousInterval) {
-          const formatedPreviousDateInterval = this.operatorDateParser
-            .getPreviousDateFilter(rawPreviousInterval.operator, rawPreviousInterval.value);
+    let countPrevious;
+    if (rawPreviousInterval) {
+      const formatedPreviousDateInterval = this.operatorDateParser
+        .getPreviousDateFilter(rawPreviousInterval.operator, rawPreviousInterval.value);
 
-          if (where[OPERATORS.AND]) {
-            where[OPERATORS.AND].forEach((condition) => {
-              if (condition[rawPreviousInterval.field]) {
-                // NOTICE: Might not work on super edgy cases (when the 'rawPreviousInterval.field'
-                //        appears twice ont the filters)
-                condition[rawPreviousInterval.field] = formatedPreviousDateInterval;
-              }
-            });
-          } else {
-            where[rawPreviousInterval.field] = formatedPreviousDateInterval;
+      if (where[OPERATORS.AND]) {
+        where[OPERATORS.AND].forEach((condition) => {
+          if (condition[rawPreviousInterval.field]) {
+            // NOTICE: Might not work on super edgy cases (when the 'rawPreviousInterval.field'
+            //        appears twice ont the filters)
+            // FIXME This will also break scopes if they are configured using the date field.
+            condition[rawPreviousInterval.field] = formatedPreviousDateInterval;
           }
+        });
+      } else {
+        where[rawPreviousInterval.field] = formatedPreviousDateInterval;
+      }
 
-          return model
-            .unscoped()
-            .aggregate(aggregateField, aggregate, {
-              include: getIncludes(),
-              where,
-            })
-            .then((resultCount) => resultCount || 0);
-        }
-        return undefined;
-      })
-      .then((countPrevious) => ({
-        value: {
-          countCurrent,
-          countPrevious,
-        },
-      }));
+      countPrevious = await model.unscoped().aggregate(
+        aggregateField, aggregate, { include, where },
+      ) || 0;
+    }
+
+    return { value: { countCurrent, countPrevious } };
   };
 }
 
