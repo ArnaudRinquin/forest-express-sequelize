@@ -65,7 +65,7 @@ function ValueStatGetter(model, params, options) {
     const aggregate = getAggregate();
 
     const queryOptions = new QueryOptions(model, { includeRelations: true });
-    queryOptions.filterByConditionTree(params.filters);
+    await queryOptions.filterByConditionTree(params.filters);
 
     const { sequelizeOptions } = queryOptions;
     sequelizeOptions.include = sequelizeOptions.include

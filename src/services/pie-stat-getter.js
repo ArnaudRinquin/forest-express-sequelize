@@ -83,7 +83,7 @@ function PieStatGetter(model, params, options) {
   this.perform = async () => {
     const { filters, timezone } = params;
     const queryOptions = new QueryOptions(model, { includeRelations: true });
-    queryOptions.filterByConditionTree(filters, timezone);
+    await queryOptions.filterByConditionTree(filters, timezone);
 
     const { include, where } = queryOptions.sequelizeOptions;
     const records = await model.unscoped().findAll({

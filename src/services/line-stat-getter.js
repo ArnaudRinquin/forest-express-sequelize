@@ -199,7 +199,7 @@ ${groupByDateFieldFormated}), 'yyyy-MM-dd 00:00:00')`);
   this.perform = async () => {
     const { filters, timezone } = params;
     const queryOptions = new QueryOptions(model, { includeRelations: true });
-    queryOptions.filterByConditionTree(filters, timezone);
+    await queryOptions.filterByConditionTree(filters, timezone);
 
     const { include, where } = queryOptions.sequelizeOptions;
     const records = await model.unscoped().findAll({
