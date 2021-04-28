@@ -24,10 +24,10 @@ function ValueStatGetter(model, params, options) {
     return `${schema.name}.${Orm.getColumnName(schema, fieldName)}`;
   }
 
-  this.getCountCurrent = async (aggregateField, aggregate, sequelizeOptions) => {
+  async function getCountCurrent(aggregateField, aggregate, sequelizeOptions) {
     const count = await model.unscoped().aggregate(aggregateField, aggregate, sequelizeOptions);
     return count ?? 0;
-  };
+  }
 
   /**
    * Modify the filter, and fetch the value for the previous period.
@@ -36,7 +36,7 @@ function ValueStatGetter(model, params, options) {
    * - when the 'rawPreviousInterval.field' appears twice
    * - when scopes use the same field as the filter
    */
-  this.getCountPrevious = async (aggregateField, aggregate, sequelizeOptions) => {
+  async function getCountPrevious(aggregateField, aggregate, sequelizeOptions) {
     if (!params.filters) { return undefined; }
 
     const conditionsParser = new FiltersParser(schema, params.timezone, options);
@@ -57,8 +57,7 @@ function ValueStatGetter(model, params, options) {
 
     const count = await model.unscoped().aggregate(aggregateField, aggregate, sequelizeOptions);
     return count || 0;
-  };
-
+  }
 
   this.perform = async () => {
     const aggregateField = getAggregateField();
@@ -68,14 +67,16 @@ function ValueStatGetter(model, params, options) {
     await queryOptions.filterByConditionTree(params.filters);
 
     const { sequelizeOptions } = queryOptions;
+
+    // No attributes should be retrieved from relations.
     sequelizeOptions.include = sequelizeOptions.include
       ? sequelizeOptions.include.map((i) => ({ ...i, attributes: [] }))
       : undefined;
 
     return {
       value: {
-        countCurrent: await this.getCountCurrent(aggregateField, aggregate, sequelizeOptions),
-        countPrevious: await this.getCountPrevious(aggregateField, aggregate, sequelizeOptions),
+        countCurrent: await getCountCurrent(aggregateField, aggregate, sequelizeOptions),
+        countPrevious: await getCountPrevious(aggregateField, aggregate, sequelizeOptions),
       },
     };
   };
