@@ -19,12 +19,6 @@ class QueryOptions {
    * i.e: Books.findAll(queryOptions.sequelizeOptions);
    */
   get sequelizeOptions() {
-    // Used for failed search, and when retricting to empty lists of ids.
-    // Saves us from having to deal with thoses cases in all charts, ressources-getter, ...
-    if (this._returnZeroRecords) {
-      return { where: this._Sequelize.literal('(0=1)') };
-    }
-
     const options = {};
     if (this._sequelizeWhere) options.where = this._sequelizeWhere;
     if (this._sequelizeInclude) options.include = this._sequelizeInclude;
@@ -76,8 +70,6 @@ class QueryOptions {
     this._model = model.unscoped();
     this._options = options;
 
-    this._returnZeroRecords = false;
-
     // Used to compute relations that will go in the final 'include'
     this._requestedFields = new Set();
     this._neededFields = new Set();
@@ -118,12 +110,7 @@ class QueryOptions {
    * @param {string[]} recordIds Packed record ids
    */
   async filterByIds(recordIds) {
-    if (recordIds.length) {
-      const keyManager = new CompositeKeysManager(this._model);
-      this._where.push(keyManager.getRecordsConditions(recordIds));
-    } else {
-      this._returnZeroRecords = true;
-    }
+    this._where.push(new CompositeKeysManager(this._model).getRecordsConditions(recordIds));
   }
 
   /**
@@ -159,7 +146,7 @@ class QueryOptions {
     if (conditions) {
       this._where.push(conditions);
     } else {
-      this._returnZeroRecords = true;
+      this._where.push(this._Sequelize.literal('(0=1)'));
     }
 
     return helper.getFieldsSearched();
