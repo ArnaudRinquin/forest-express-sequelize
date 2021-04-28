@@ -5,52 +5,49 @@ class HasManyGetter extends ResourcesGetter {
   constructor(model, association, lianaOptions, params) {
     super(association, lianaOptions, params);
 
-    this._rootModel = model.unscoped();
+    this._parentModel = model.unscoped();
   }
 
   async _getRecords() {
-    const { associationName, recordId } = this._params;
-    const options = await this._buildQueryOptions({ tableAlias: associationName });
-
-    const record = await this._rootModel.findOne({
-      // Don't fetch parent attributes (perf)
-      attributes: [],
-
-      // We are ordering with the relation
-      // https://github.com/sequelize/sequelize/issues/4553#issuecomment-213989980
-      order: (options.order || []).map((o) => [associationName, ...o]),
-      offset: options.offset,
-      limit: options.limit,
-      where: new CompositeKeysManager(this._rootModel).getRecordsConditions([recordId]),
-      subQuery: false,
-      include: [{
-        model: this._model,
-        as: associationName,
-        scope: false,
-        required: false,
-        where: options.where,
-        include: options.include,
-      }],
-    });
-
-    return (record && record[associationName]) || [];
+    const options = await this._buildQueryOptions();
+    const record = await this._parentModel.findOne(options);
+    return (record && record[this._params.associationName]) || [];
   }
 
   async count() {
-    const { associationName, recordId } = this._params;
-    const options = await this._buildQueryOptions({ forCount: true, tableAlias: associationName });
+    const options = await this._buildQueryOptions({ forCount: true });
+    return this._parentModel.count(options);
+  }
 
-    return this._rootModel.count({
-      where: new CompositeKeysManager(this._rootModel).getRecordsConditions([recordId]),
+  async _buildQueryOptions(buildOptions = {}) {
+    const { associationName, recordId } = this._params;
+    const options = await super._buildQueryOptions({
+      ...buildOptions, tableAlias: associationName,
+    });
+
+    const parentOptions = {
+      where: new CompositeKeysManager(this._parentModel).getRecordsConditions([recordId]),
       include: [{
         model: this._model,
         as: associationName,
-        required: true,
         scope: false,
+        required: !!buildOptions.forCount, // Why?
         where: options.where,
         include: options.include,
       }],
-    });
+    };
+
+    if (!buildOptions.forCount) {
+      parentOptions.subQuery = false; // Why?
+      parentOptions.attributes = []; // Don't fetch parent attributes (perf)
+      parentOptions.offset = options.offset;
+      parentOptions.limit = options.limit;
+
+      // Order with the relation (https://github.com/sequelize/sequelize/issues/4553)
+      parentOptions.order = (options.order || []).map((o) => [associationName, ...o]);
+    }
+
+    return parentOptions;
   }
 }
 

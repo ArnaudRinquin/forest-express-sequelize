@@ -48,8 +48,8 @@ class ResourcesGetter {
   }
 
   /** Compute query options (shared for count and getRecords) */
-  async _buildQueryOptions(options = {}) {
-    const { forCount, tableAlias } = options;
+  async _buildQueryOptions(buildOptions = {}) {
+    const { forCount, tableAlias } = buildOptions;
     const {
       fields, filters, search, searchExtended, segment, segmentQuery, timezone,
     } = this._params;
