@@ -25,9 +25,9 @@ class CompositeKeysManager {
         throw new Error('No primary key was found');
 
       case 1:
-        return recordIds.length === 1
-          ? { [this._primaryKeys[0]]: recordIds[0] }
-          : { [this._primaryKeys[0]]: recordIds };
+        return {
+          [this._primaryKeys[0]]: recordIds.length === 1 ? recordIds[0] : recordIds,
+        };
 
       default:
         return recordIds.length === 1
