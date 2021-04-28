@@ -19,19 +19,23 @@ class QueryOptions {
    * i.e: Books.findAll(queryOptions.sequelizeOptions);
    */
   get sequelizeOptions() {
+    const { _sequelizeIncludes: include, _sequelizeWhere: where } = this;
+
     // Used for failed search, and when retricting to empty lists of ids.
     // Saves us from having to deal with thoses cases in all charts, ressources-getter, ...
     if (this._returnZeroRecords) {
       return { where: this._Sequelize.literal('(0=1)') };
     }
 
-    const { _sequelizeIncludes: include, _sequelizeWhere: where } = this;
     const options = {};
     if (where) options.where = where;
     if (include) options.include = include;
     if (this._order.length) options.order = this._order;
-    if (this._offset !== undefined) options.offset = this._offset;
-    if (this._limit !== undefined) options.limit = this._limit;
+    if (this._offset !== undefined && this._limit !== undefined) {
+      options.offset = this._offset;
+      options.limit = this._limit;
+    }
+
     return options;
   }
 
