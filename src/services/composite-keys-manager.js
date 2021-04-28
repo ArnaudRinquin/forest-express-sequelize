@@ -15,7 +15,6 @@ class CompositeKeysManager {
 
   /** Build sequelize where condition from a list of packed recordIds */
   getRecordsConditions(recordIds) {
-    const Ops = Operators.getInstance({ Sequelize: this._Sequelize });
     if (recordIds.length <= 0) {
       return this._Sequelize.literal('(0=1)');
     }
@@ -25,14 +24,10 @@ class CompositeKeysManager {
         throw new Error('No primary key was found');
 
       case 1:
-        return {
-          [this._primaryKeys[0]]: recordIds.length === 1 ? recordIds[0] : recordIds,
-        };
+        return this._getRecordsConditionsSimple(recordIds);
 
       default:
-        return recordIds.length === 1
-          ? this._getRecordConditions(recordIds[0])
-          : { [Ops.OR]: recordIds.map((id) => this._getRecordConditions(id)) };
+        return this._getRecordsConditionComposite(recordIds);
     }
   }
 
@@ -43,6 +38,18 @@ class CompositeKeysManager {
         record.forestCompositePrimary = this._createCompositePrimary(record);
       });
     }
+  }
+
+  _getRecordsConditionsSimple(recordIds) {
+    return { [this._primaryKeys[0]]: recordIds.length === 1 ? recordIds[0] : recordIds };
+  }
+
+  _getRecordsConditionComposite(recordIds) {
+    const Ops = Operators.getInstance({ Sequelize: this._Sequelize });
+
+    return recordIds.length === 1
+      ? this._getRecordConditions(recordIds[0])
+      : { [Ops.OR]: recordIds.map((id) => this._getRecordConditions(id)) };
   }
 
   /** Build sequelize where condition from a single packed recordId */
