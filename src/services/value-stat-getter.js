@@ -6,13 +6,11 @@ import QueryOptions from './query-options';
 
 function ValueStatGetter(model, params, options) {
   const OPERATORS = Operators.getInstance(options);
-
-  this.operatorDateParser = new BaseOperatorDateParser({
-    operators: OPERATORS,
-    timezone: params.timezone,
+  const schema = Schemas.schemas[model.name];
+  const operatorDateParser = new BaseOperatorDateParser({
+    operators: OPERATORS, timezone: params.timezone,
   });
 
-  const schema = Schemas.schemas[model.name];
   function getAggregate() {
     return params.aggregate.toLowerCase();
   }
@@ -22,54 +20,64 @@ function ValueStatGetter(model, params, options) {
     const fieldName = params.aggregate_field
       || schema.primaryKeys[0]
       || schema.fields[0].field;
+
     return `${schema.name}.${Orm.getColumnName(schema, fieldName)}`;
   }
+
+  this.getCountCurrent = async (aggregateField, aggregate, sequelizeOptions) => {
+    const count = await model.unscoped().aggregate(aggregateField, aggregate, sequelizeOptions);
+    return count ?? 0;
+  };
+
+  /**
+   * Modify the filter, and fetch the value for the previous period.
+   *
+   * FIXME Will not work on edges cases
+   * - when the 'rawPreviousInterval.field' appears twice
+   * - when scopes use the same field as the filter
+   */
+  this.getCountPrevious = async (aggregateField, aggregate, sequelizeOptions) => {
+    if (!params.filters) { return undefined; }
+
+    const conditionsParser = new FiltersParser(schema, params.timezone, options);
+    const rawInterval = conditionsParser.getPreviousIntervalCondition(params.filters);
+    if (!rawInterval) { return undefined; }
+
+    const interval = operatorDateParser.getPreviousDateFilter(
+      rawInterval.operator, rawInterval.value,
+    );
+
+    if (sequelizeOptions.where[OPERATORS.AND]) {
+      sequelizeOptions.where[OPERATORS.AND]
+        .filter((c) => c[rawInterval.field])
+        .forEach((condition) => { condition[rawInterval.field] = interval; });
+    } else {
+      sequelizeOptions.where[rawInterval.field] = interval;
+    }
+
+    const count = await model.unscoped().aggregate(aggregateField, aggregate, sequelizeOptions);
+    return count || 0;
+  };
+
 
   this.perform = async () => {
     const aggregateField = getAggregateField();
     const aggregate = getAggregate();
-    let rawPreviousInterval;
 
     const queryOptions = new QueryOptions(model, { includeRelations: true });
     queryOptions.filterByConditionTree(params.filters);
+
     const { sequelizeOptions } = queryOptions;
     sequelizeOptions.include = sequelizeOptions.include
       ? sequelizeOptions.include.map((i) => ({ ...i, attributes: [] }))
       : undefined;
 
-    if (params.filters) {
-      const conditionsParser = new FiltersParser(schema, params.timezone, options);
-      rawPreviousInterval = conditionsParser.getPreviousIntervalCondition(params.filters);
-    }
-
-    const countCurrent = await model.unscoped().aggregate(
-      aggregateField, aggregate, sequelizeOptions,
-    ) || 0;
-
-    let countPrevious;
-    if (rawPreviousInterval) {
-      const formatedPreviousDateInterval = this.operatorDateParser
-        .getPreviousDateFilter(rawPreviousInterval.operator, rawPreviousInterval.value);
-
-      if (sequelizeOptions.where[OPERATORS.AND]) {
-        sequelizeOptions.where[OPERATORS.AND].forEach((condition) => {
-          if (condition[rawPreviousInterval.field]) {
-            // NOTICE: Might not work on super edgy cases (when the 'rawPreviousInterval.field'
-            //        appears twice ont the filters)
-            // FIXME This will also break scopes if they are configured using the date field.
-            condition[rawPreviousInterval.field] = formatedPreviousDateInterval;
-          }
-        });
-      } else {
-        sequelizeOptions.where[rawPreviousInterval.field] = formatedPreviousDateInterval;
-      }
-
-      countPrevious = await model.unscoped().aggregate(
-        aggregateField, aggregate, sequelizeOptions,
-      ) || 0;
-    }
-
-    return { value: { countCurrent, countPrevious } };
+    return {
+      value: {
+        countCurrent: await this.getCountCurrent(aggregateField, aggregate, sequelizeOptions),
+        countPrevious: await this.getCountPrevious(aggregateField, aggregate, sequelizeOptions),
+      },
+    };
   };
 }
 

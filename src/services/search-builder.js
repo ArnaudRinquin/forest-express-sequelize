@@ -78,16 +78,14 @@ function SearchBuilder(model, opts, params, fieldNamesRequested) {
       where[OPERATORS.OR] = [];
     }
 
-    schema.fields.forEach((field) => {
-      if (field.search) {
-        try {
-          // Retrocompatibility: customers which implement search on smart fields are expected to
-          // inject their conditions at .where[Op.and][0][Op.or].push(searchCondition)
-          // https://docs.forestadmin.com/documentation/reference-guide/fields/create-and-manage-smart-fields
-          field.search({ where: { [OPERATORS.AND]: [where] } }, search);
-        } catch (error) {
-          Interface.logger.error(`Cannot search properly on Smart Field ${field.field}`, error);
-        }
+    schema.fields.filter((field) => field.search).forEach((field) => {
+      try {
+        // Retrocompatibility: customers which implement search on smart fields are expected to
+        // inject their conditions at .where[Op.and][0][Op.or].push(searchCondition)
+        // https://docs.forestadmin.com/documentation/reference-guide/fields/create-and-manage-smart-fields
+        field.search({ where: { [OPERATORS.AND]: [where] } }, search);
+      } catch (error) {
+        Interface.logger.error(`Cannot search properly on Smart Field ${field.field}`, error);
       }
     });
 
