@@ -19,29 +19,45 @@ class QueryOptions {
    * i.e: Books.findAll(queryOptions.sequelizeOptions);
    */
   get sequelizeOptions() {
-    const { AND } = Operators.getInstance({ Sequelize: this._Sequelize });
-
     // Used for failed search, and when retricting to empty lists of ids.
     // Saves us from having to deal with thoses cases in all charts, ressources-getter, ...
     if (this._returnZeroRecords) {
       return { where: this._Sequelize.literal('(0=1)') };
     }
 
-    // Compute includes from the fields that we need for the request
+    const { _sequelizeIncludes: include, _sequelizeWhere: where } = this;
+    const options = {};
+    if (where) options.where = where;
+    if (include) options.include = include;
+    if (this._order.length) options.order = this._order;
+    if (this._offset !== undefined) options.offset = this._offset;
+    if (this._limit !== undefined) options.limit = this._limit;
+    return options;
+  }
+
+  /** Compute sequelize where condition */
+  get _sequelizeWhere() {
+    const { AND } = Operators.getInstance({ Sequelize: this._Sequelize });
+
+    switch (this._where.length) {
+      case 0:
+        return null;
+      case 1:
+        return this._where[0];
+      default:
+        return { [AND]: this._where };
+    }
+  }
+
+  /** Compute includes from the fields that we need for the request */
+  get _sequelizeIncludes() {
     const fields = [...this._requestedFields, ...this._neededFields];
     const include = [
       ...this._include,
       ...new QueryBuilder().getIncludes(this._model, fields.length ? fields : null),
     ];
 
-    const options = {};
-    if (this._where.length === 1) [options.where] = this._where;
-    if (this._where.length > 1) options.where = { [AND]: this._where };
-    if (include.length) options.include = include;
-    if (this._order.length) options.order = this._order;
-    if (this._offset !== undefined) options.offset = this._offset;
-    if (this._limit !== undefined) options.limit = this._limit;
-    return options;
+    return include.length ? include : null;
   }
 
   /**
