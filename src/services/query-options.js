@@ -37,7 +37,7 @@ class QueryOptions {
     return options;
   }
 
-  /** Compute sequelize where condition */
+  /** Compute sequelize where condition for sequelizeOptions getter. */
   get _sequelizeWhere() {
     const { AND } = Operators.getInstance({ Sequelize: this._Sequelize });
 
@@ -51,7 +51,7 @@ class QueryOptions {
     }
   }
 
-  /** Compute includes from the fields that we need for the request */
+  /** Compute includes for sequelizeOptions getter. */
   get _sequelizeInclude() {
     const fields = [...this._requestedFields, ...this._neededFields];
     const include = [
@@ -103,8 +103,8 @@ class QueryOptions {
 
   /**
    * Add the required includes from a list of field names.
-   * Field names of HasOne and BelongTo relations are accepted (ie. 'book.name').
-   * @param {string[]} fields
+   * @param {string[]} fields Fields of HasOne and BelongTo relations are
+   *  accepted (ie. 'book.name').
    */
   async requireFields(fields) {
     if (fields) {
@@ -128,8 +128,8 @@ class QueryOptions {
 
   /**
    * Apply condition tree to those query options (scopes, user filters, charts, ...)
-   * @param {*} filters
-   * @param {*} timezone
+   * @param {*} filters standard forest filters
+   * @param {*} timezone timezone of the user (required if filtering on dates)
    */
   async filterByConditionTree(filters, timezone) {
     const filterParser = new FiltersParser(this._schema, timezone, { Sequelize: this._Sequelize });
