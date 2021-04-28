@@ -151,29 +151,18 @@ class QueryOptions {
   async search(search, searchExtended) {
     if (!search) return [];
 
+    const options = { Sequelize: this._Sequelize };
     const fieldNames = this._requestedFields.size ? [...this._requestedFields] : null;
-    const searchBuilder = new SearchBuilder(
-      this._model,
-      { Sequelize: this._Sequelize },
-      { search, searchExtended },
-      fieldNames,
-    );
+    const helper = new SearchBuilder(this._model, options, { search, searchExtended }, fieldNames);
 
-    const conditions = searchBuilder.perform(this._options.tableAlias);
-    const hasCustomFieldSearch = searchBuilder.injectSmartFieldSearch(conditions);
-    const searchedFields = searchBuilder.getFieldsSearched();
-
-    // FIXME retrocompatibility, would be better to check if condition is empty.
-    const searchFailed = searchedFields.length === 0 && !hasCustomFieldSearch
-      && (!searchExtended || !searchBuilder.hasExtendedSearchConditions());
-
-    if (searchFailed) {
-      this._returnZeroRecords = true;
-    } else {
+    const conditions = helper.performWithSmartFields(this._options.tableAlias);
+    if (conditions) {
       this._where.push(conditions);
+    } else {
+      this._returnZeroRecords = true;
     }
 
-    return searchedFields;
+    return helper.getFieldsSearched();
   }
 
   /**
