@@ -32,7 +32,10 @@ function ValueStatGetter(model, params, options) {
 
     const queryOptions = new QueryOptions(model, { includeRelations: true });
     queryOptions.filterByConditionTree(params.filters);
-    const { where, include } = queryOptions.sequelizeOptions;
+    const { sequelizeOptions } = queryOptions;
+    sequelizeOptions.include = sequelizeOptions.include
+      ? sequelizeOptions.include.map((i) => ({ ...i, attributes: [] }))
+      : undefined;
 
     if (params.filters) {
       const conditionsParser = new FiltersParser(schema, params.timezone, options);
@@ -40,7 +43,7 @@ function ValueStatGetter(model, params, options) {
     }
 
     const countCurrent = await model.unscoped().aggregate(
-      aggregateField, aggregate, { include, where },
+      aggregateField, aggregate, sequelizeOptions,
     ) || 0;
 
     let countPrevious;
@@ -48,8 +51,8 @@ function ValueStatGetter(model, params, options) {
       const formatedPreviousDateInterval = this.operatorDateParser
         .getPreviousDateFilter(rawPreviousInterval.operator, rawPreviousInterval.value);
 
-      if (where[OPERATORS.AND]) {
-        where[OPERATORS.AND].forEach((condition) => {
+      if (sequelizeOptions.where[OPERATORS.AND]) {
+        sequelizeOptions.where[OPERATORS.AND].forEach((condition) => {
           if (condition[rawPreviousInterval.field]) {
             // NOTICE: Might not work on super edgy cases (when the 'rawPreviousInterval.field'
             //        appears twice ont the filters)
@@ -58,11 +61,11 @@ function ValueStatGetter(model, params, options) {
           }
         });
       } else {
-        where[rawPreviousInterval.field] = formatedPreviousDateInterval;
+        sequelizeOptions.where[rawPreviousInterval.field] = formatedPreviousDateInterval;
       }
 
       countPrevious = await model.unscoped().aggregate(
-        aggregateField, aggregate, { include, where },
+        aggregateField, aggregate, sequelizeOptions,
       ) || 0;
     }
 

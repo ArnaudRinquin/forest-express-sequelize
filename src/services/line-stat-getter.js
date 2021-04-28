@@ -201,8 +201,10 @@ ${groupByDateFieldFormated}), 'yyyy-MM-dd 00:00:00')`);
     const queryOptions = new QueryOptions(model, { includeRelations: true });
     queryOptions.filterByConditionTree(filters, timezone);
 
+    const { include, where } = queryOptions.sequelizeOptions;
     const records = await model.unscoped().findAll({
-      ...queryOptions.sequelizeOptions,
+      include: include ? include.map((i) => ({ ...i, attributes: [] })) : undefined,
+      where,
       attributes: [getGroupByDateInterval(), getAggregate()],
       group: getGroupBy(),
       order: getOrder(),
